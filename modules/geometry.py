@@ -1,0 +1,6 @@
+class Geometry3D:
+    def __init__(self, *args, **kwargs):
+        ...
+    def __call__():
+        ...
+    

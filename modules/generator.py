@@ -1,6 +1,5 @@
 import numpy as np
 import os
-
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,10 +7,21 @@ import matplotlib.pyplot as plt
 class Shower:
     def __init__(self, energy, *args, **kwargs):
         self.energy = torch.tensor(energy, dtype=torch.float32, requires_grad=False)
-        # Define a meshgrid x in (-25,25) z in (0,500)
-        self.x = torch.linspace(-25, 25, 100, requires_grad=False)
-        self.z = torch.linspace(0, 500, 100, requires_grad=False) + 0.01
-        self.X, self.Z = torch.meshgrid(self.x, self.z, indexing='ij')
+        # Define a meshgrid x in (-25,25) z in (0,500))
+        # if spacing is not provided, use 100 points, otherwise use the provided spacing
+        if 'spacing' in kwargs:
+            npoints_x = 500/kwargs['spacing'][0]
+            npoints_y = 500/kwargs['spacing'][1]
+            npoints_z = 500/kwargs['spacing'][2]
+            x = torch.linspace(-250, 250, npoints_x.int(), requires_grad=True)
+            y = torch.linspace(-250, 250, npoints_y.int(), requires_grad=True)
+            z = torch.linspace(0, 500, npoints_z.int(), requires_grad=True)
+        else:
+            x = torch.linspace(-250, 250, 100, requires_grad=True)
+            y = torch.linspace(-250, 250, 100, requires_grad=True)
+            z = torch.linspace(0, 500, 100, requires_grad=True)
+        self.X, self.Y, self.Z = torch.meshgrid(x, y, z, indexing='ij')
+        self.R = torch.sqrt(self.X**2 + self.Y**2)
         
         # Load parameters and convert to tensors
         self._pars_a = torch.tensor(np.loadtxt('modules/pars/fit_pars_final_0.txt'), dtype=torch.float32, requires_grad=False)
@@ -20,7 +30,7 @@ class Shower:
         
         self._a, self._b, self._c = self.calculate_coefficients(self.Z, **kwargs)
 
-    def calculate_coefficients(self, z, *args, DEBUG=False):
+    def calculate_coefficients(self, z, DEBUG=False, *args, **kwargs):
         def func0(x, a, b, c):
             return a * (b - torch.exp(-c * x))
         
@@ -41,7 +51,7 @@ class Shower:
 
         c0 = func1(self.energy, *self._pars_c[0])
         c1 = func1(self.energy, *self._pars_c[1])
-        c2 = torch.tensor(1.0, dtype=torch.float32, requires_grad=False)  # Use torch constant for c2
+        c2 = torch.tensor(4.60, dtype=torch.float32, requires_grad=False)  # Use torch constant for c2
 
         # Plot c0, c1, c2 for a range of energies in 0.5, 150
         if DEBUG:
@@ -112,16 +122,16 @@ class Shower:
 
         _a = a0 * torch.exp(a1 * z**3 + a2 * z**2 + a3 * z)
         _b = b0 * torch.exp(-b1 * z) + b2
-        _c = c0 * torch.exp(-c1 * (torch.log(z + 0.01) - c2)**2)
+        _c = c0 * torch.exp(-c1 * (torch.log(z+0.01) - c2)**2)
 
         return _a, _b, _c
 
     def __call__(self):
-        return torch.exp(self._a * torch.exp(-self._b * torch.abs(self.X))) + self._c - 1.0
+        return torch.exp(self._a * torch.exp(-self._b * torch.abs(self.R))) + self._c - 1.0
 
 
     def plot_parameters(self):
-        z = np.linspace(0,500,100)
+        z = torch.linspace(0, 500, 100, requires_grad=False)
         plt.figure(figsize=(10,15))
         a, b, c = self.calculate_coefficients(z)
         plt.subplot(3,1,1)
